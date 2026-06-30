@@ -76,6 +76,7 @@
             flex-direction: column;
             justify-content: center;
             align-items: center;
+            padding: 20px;
         }
 
         /* Menu Screen */
@@ -151,7 +152,7 @@
             gap: 20px;
             width: 100%;
             height: 100%;
-            padding: 20px;
+            overflow-y: auto;
         }
 
         .game-screen.active {
@@ -169,10 +170,14 @@
             border: 2px solid #0ff;
             border-radius: 10px;
             backdrop-filter: blur(10px);
+            flex-wrap: wrap;
+            gap: 10px;
         }
 
         .stat {
             text-align: center;
+            flex: 1;
+            min-width: 100px;
         }
 
         .stat-label {
@@ -232,6 +237,45 @@
             background: rgba(0, 255, 255, 0.4);
             box-shadow: 0 0 10px #0ff;
         }
+
+        /* Mobile Controls */
+        .mobile-controls {
+            display: none;
+            grid-template-columns: repeat(3, 60px);
+            gap: 10px;
+            justify-content: center;
+            margin-top: 20px;
+        }
+
+        .mobile-controls.active {
+            display: grid;
+        }
+
+        .arrow-btn {
+            width: 60px;
+            height: 60px;
+            background: rgba(0, 255, 0, 0.3);
+            border: 2px solid #0f0;
+            color: #0f0;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1.5em;
+            font-weight: bold;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .arrow-btn:active {
+            background: rgba(0, 255, 0, 0.8);
+            box-shadow: 0 0 15px #0f0;
+        }
+
+        .arrow-btn:nth-child(1) { grid-column: 2; grid-row: 1; }
+        .arrow-btn:nth-child(2) { grid-column: 1; grid-row: 2; }
+        .arrow-btn:nth-child(3) { grid-column: 2; grid-row: 2; }
+        .arrow-btn:nth-child(4) { grid-column: 3; grid-row: 2; }
 
         /* Pause Menu */
         .pause-menu {
@@ -440,6 +484,10 @@
             .stat-value {
                 font-size: 1.4em;
             }
+
+            .mobile-controls.active {
+                display: grid;
+            }
         }
     </style>
 </head>
@@ -453,10 +501,8 @@
             <div class="logo">🐍 NEXUS</div>
             <div class="tagline">>>> ULTIMATE ARCADE EXPERIENCE <<<</div>
             <div class="menu-buttons">
-                <button class="menu-btn" onclick="startClassicMode()">▶ Classic Mode</button>
-                <button class="menu-btn" onclick="startEndlessMode()">♾ Endless Mode</button>
-                <button class="menu-btn" onclick="startChallengeMode()">🎯 Challenge Mode</button>
-                <button class="menu-btn" onclick="showSettings()">⚙ Settings</button>
+                <button class="menu-btn" onclick="startClassicMode()">▶ START GAME</button>
+                <button class="menu-btn" onclick="startEndlessMode()">♾ ENDLESS MODE</button>
             </div>
         </div>
 
@@ -482,17 +528,25 @@
             </div>
 
             <div class="game-canvas-wrapper">
-                <canvas id="gameCanvas" width="600" height="400"></canvas>
+                <canvas id="gameCanvas" width="400" height="300"></canvas>
             </div>
 
             <div class="controls-info" id="controlsInfo">
-                Use Arrow Keys or WASD to move • Press SPACE to pause
+                🎮 Keyboard: Arrow Keys or WASD | Mobile: Use Buttons Below
             </div>
 
             <div class="game-controls">
                 <button class="control-btn" onclick="togglePause()">⏸ Pause</button>
                 <button class="control-btn" onclick="goToMenu()">🏠 Menu</button>
-                <button class="control-btn" onclick="toggleSound()">🔊 Sound: ON</button>
+                <button class="control-btn" onclick="toggleSound()" id="soundBtn">🔊 Sound: ON</button>
+            </div>
+
+            <!-- Mobile Arrow Controls -->
+            <div class="mobile-controls" id="mobileControls">
+                <button class="arrow-btn" onclick="mobileMove(0, -1)">⬆</button>
+                <button class="arrow-btn" onclick="mobileMove(-1, 0)">⬅</button>
+                <button class="arrow-btn" onclick="mobileMove(0, 1)">⬇</button>
+                <button class="arrow-btn" onclick="mobileMove(1, 0)">➡</button>
             </div>
         </div>
     </div>
@@ -540,8 +594,6 @@
             direction: {x: 1, y: 0},
             nextDirection: {x: 1, y: 0},
             obstacles: [],
-            powerUps: [],
-            activePowerUps: {},
         };
 
         const canvas = document.getElementById('gameCanvas');
@@ -549,6 +601,7 @@
         const GRID_SIZE = 20;
         const COLS = canvas.width / GRID_SIZE;
         const ROWS = canvas.height / GRID_SIZE;
+        let gameLoopId;
 
         // ==================== INITIALIZATION ====================
         function initStarfield() {
@@ -567,6 +620,15 @@
 
         initStarfield();
 
+        // Check if mobile device
+        function isMobile() {
+            return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+        }
+
+        if (isMobile()) {
+            document.getElementById('mobileControls').classList.add('active');
+        }
+
         // ==================== GAME MODES ====================
         function startClassicMode() {
             gameState.mode = 'classic';
@@ -578,16 +640,11 @@
             startGame();
         }
 
-        function startChallengeMode() {
-            gameState.mode = 'challenge';
-            startGame();
-        }
-
         function startGame() {
             resetGameState();
             showGameScreen();
             gameState.isActive = true;
-            gameLoop();
+            gameLoopId = setInterval(gameLoop, 100);
         }
 
         function resetGameState() {
@@ -600,7 +657,6 @@
             gameState.foodEaten = 0;
             gameState.isPaused = false;
             gameState.obstacles = [];
-            gameState.activePowerUps = {};
             generateFood();
             updateUI();
         }
@@ -613,6 +669,7 @@
 
         function goToMenu() {
             gameState.isActive = false;
+            clearInterval(gameLoopId);
             document.getElementById('gameScreen').classList.remove('active');
             document.getElementById('menuScreen').style.display = 'flex';
             document.getElementById('pauseMenu').classList.remove('active');
@@ -630,12 +687,8 @@
         function toggleSound() {
             gameState.soundEnabled = !gameState.soundEnabled;
             localStorage.setItem('soundEnabled', gameState.soundEnabled);
-            document.querySelector('.control-btn:nth-child(3)').textContent = 
+            document.getElementById('soundBtn').textContent = 
                 gameState.soundEnabled ? '🔊 Sound: ON' : '🔇 Sound: OFF';
-        }
-
-        function showSettings() {
-            alert('Settings coming soon!');
         }
 
         function updateUI() {
@@ -647,6 +700,7 @@
 
         function showGameOver() {
             gameState.isActive = false;
+            clearInterval(gameLoopId);
             document.getElementById('finalScore').textContent = gameState.score;
             document.getElementById('finalLevel').textContent = gameState.level;
             document.getElementById('finalFood').textContent = gameState.foodEaten;
@@ -852,6 +906,12 @@
         }
 
         // ==================== INPUT HANDLING ====================
+        function mobileMove(dx, dy) {
+            if (gameState.direction.x * dx + gameState.direction.y * dy !== -1) {
+                gameState.nextDirection = {x: dx, y: dy};
+            }
+        }
+
         document.addEventListener('keydown', (e) => {
             if (!gameState.isActive) return;
 
@@ -890,28 +950,32 @@
         function playSound(type) {
             if (!gameState.soundEnabled) return;
             
-            const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-            const oscillator = audioContext.createOscillator();
-            const gainNode = audioContext.createGain();
-            
-            oscillator.connect(gainNode);
-            gainNode.connect(audioContext.destination);
-            
-            switch(type) {
-                case 'eat':
-                    oscillator.frequency.value = 800;
-                    gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
-                    gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.1);
-                    oscillator.start(audioContext.currentTime);
-                    oscillator.stop(audioContext.currentTime + 0.1);
-                    break;
-                case 'gameover':
-                    oscillator.frequency.value = 200;
-                    gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
-                    gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.5);
-                    oscillator.start(audioContext.currentTime);
-                    oscillator.stop(audioContext.currentTime + 0.5);
-                    break;
+            try {
+                const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                const oscillator = audioContext.createOscillator();
+                const gainNode = audioContext.createGain();
+                
+                oscillator.connect(gainNode);
+                gainNode.connect(audioContext.destination);
+                
+                switch(type) {
+                    case 'eat':
+                        oscillator.frequency.value = 800;
+                        gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+                        gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.1);
+                        oscillator.start(audioContext.currentTime);
+                        oscillator.stop(audioContext.currentTime + 0.1);
+                        break;
+                    case 'gameover':
+                        oscillator.frequency.value = 200;
+                        gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+                        gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.5);
+                        oscillator.start(audioContext.currentTime);
+                        oscillator.stop(audioContext.currentTime + 0.5);
+                        break;
+                }
+            } catch (e) {
+                console.log('Audio not available');
             }
         }
 
@@ -919,13 +983,13 @@
         function gameLoop() {
             update();
             draw();
-            
-            const speed = Math.max(50, 150 - gameState.level * 10);
-            setTimeout(gameLoop, speed);
         }
 
-        // Start game loop
-        gameLoop();
+        // Initialize high score display
+        document.getElementById('highScoreDisplay').textContent = gameState.highScore;
+
+        // Start with menu
+        document.getElementById('menuScreen').style.display = 'flex';
     </script>
 </body>
 </html>
